@@ -3,10 +3,13 @@ use rand::rngs::StdRng;
 use crate::vec::op;
 use crate::utils::rand;
 
+/// Represents a function to optimize
 pub trait Target {
 
+    /// Evaluate the function at a given point
     fn evaluate(&mut self, data: &[f64]) -> f64;
 
+    /// Called after every optimizer iteration
     #[allow(unused_variables)]
     fn iteration(&mut self, iter: usize, data: &mut [f64]) {}
 }
@@ -23,6 +26,7 @@ impl<'a, T: Target> Target for &'a mut T {
     }
 }
 
+/// Decorator that calls underlying function multiple times to smooth out the noise
 pub struct Oversample<T> {
     source: T,
     count: usize
@@ -45,6 +49,7 @@ impl<T: Target> Target for Oversample<T> {
     }
 }
 
+/// Decorator that adds random noise to function output
 pub struct OutputNoise<T> {
     source: T,
     gen: StdRng,
@@ -61,6 +66,16 @@ impl<T: Target> Target for OutputNoise<T> {
     }
 }
 
+/// Some functions have many local minima, causing SPSA and
+/// similar methods to run into bad solutions.
+///
+/// This can, to some extent, be countered using this decorator.
+///
+/// In this way, SPSA will explore neighboring inputs instead of getting stuck in a "basin".
+///
+/// If the noise is sufficiently high, and there is a general trend in
+/// the direction of the basins towards the best basin,
+/// then this will converge to the locally best basin.
 pub struct InputNoise<T> {
     source: T,
     gen: StdRng,
@@ -71,7 +86,10 @@ pub struct InputNoise<T> {
 impl<T: Target> Target for InputNoise<T> {
     fn evaluate(&mut self, data: &[f64]) -> f64 {
         let buffer = &mut self.buffer;
-        op!(mut buffer => rand(&mut self.gen, -1.0..1.0) * self.amplitude);
+        let rng = &mut self.gen;
+        let amp = self.amplitude;
+
+        op!(mut buffer => rand(rng, -1.0..1.0) * amp);
 
         op!(mut buffer, data => buffer + data);
         let up = self.source.evaluate(buffer);
@@ -87,8 +105,14 @@ impl<T: Target> Target for InputNoise<T> {
     }
 }
 
+/// Extension methods for [`Target`]
 pub trait TargetExt where Self: Sized {
 
+    /// Creates a new [`Target`] that "oversamples" this function,
+    /// meaning that it will evaluate the function multiple times
+    /// and use the average as the result.
+    ///
+    /// Used for smoothing particularly noisy functions.
     fn oversample(self, count: usize) -> Oversample<Self> {
         Oversample {
             source: self,
@@ -96,6 +120,7 @@ pub trait TargetExt where Self: Sized {
         }
     }
 
+    /// Creates a new [`Target`] that adds slight amount of noise to its output.
     fn output_noise(self, amplitude: f64) -> OutputNoise<Self> {
         OutputNoise {
             source: self,
@@ -104,6 +129,16 @@ pub trait TargetExt where Self: Sized {
         }
     }
 
+    /// Some functions have many local minima, causing SPSA and
+    /// similar methods to run into bad solutions.
+    ///
+    /// This can, to some extent, be countered using this decorator.
+    ///
+    /// In this way, SPSA will explore neighboring inputs instead of getting stuck in a "basin".
+    ///
+    /// If the noise is sufficiently high, and there is a general trend in
+    /// the direction of the basins towards the best basin,
+    /// then this will converge to the locally best basin.
     fn input_noise(self, amplitude: f64) -> InputNoise<Self> {
         InputNoise {
             source: self,
