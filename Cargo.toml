@@ -1,0 +1,18 @@
+[package]
+name = "spsa"
+version = "0.1.0"
+edition = "2018"
+description = "Simultaneous perturbation stochastic approximation"
+documentation = "https://docs.rs/spsa"
+readme = "README.md"
+keywords = ["random", "rng"]
+categories = ["algorithms", "mathematics", "science"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Quant1um/spsa"
+
+[dependencies]
+rand = "0.8.5"
+packed_simd_2 = "0.3.7"
+
+[dev-dependencies]
+approx = "0.5.1"
