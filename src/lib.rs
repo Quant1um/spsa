@@ -79,6 +79,14 @@ impl Default for Options {
 #[derive(Default, Clone)]
 pub struct Optimizer([Vec<f64>; algo::REGISTER_NUM]);
 
+/// Optimizer cycle iteration data
+pub struct Iteration<'a> {
+    pub iteration: usize,
+    pub point: &'a mut [f64],
+    pub gradient: &'a mut [f64],
+    pub learning_rate: &'a mut f64,
+}
+
 impl Optimizer {
 
     /// Allocated memory necessary for optimizer to work

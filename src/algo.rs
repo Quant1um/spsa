@@ -1,5 +1,5 @@
-use crate::{Options, Target};
-use crate::utils::{rand, norm, norm2, cosine};
+use crate::{Iteration, Options, Target};
+use crate::utils::{randsign, norm, norm2, cosine, nz};
 use crate::vec::op;
 
 use rand::{SeedableRng, thread_rng};
@@ -54,12 +54,12 @@ pub fn optimize<T: Target>(mut target: T, options: Options, x: &mut [f64], r: &m
     let square_gx = r2;
 
     for i in 0..(f64::sqrt(size as f64 + 100.0) as i32) {
-        let dx = op!(mut r3 => rand(&mut rng, -1.0..1.0) / (1.0 + i as f64));
+        let dx = op!(mut r3 => randsign(&mut rng) / (1.0 + i as f64));
 
-        let up = target.evaluate(op!(mut r4, x, dx => x + dx));
-        let down = target.evaluate(op!(mut r4, x, dx => x - dx));
+        let y1 = target.evaluate(op!(mut r4, x, dx => x + dx));
+        let y2 = target.evaluate(op!(mut r4, x, dx => x - dx));
 
-        let df = (up - down) * 0.5;
+        let df = nz((y1 - y) * 0.5) - nz((y2 - y) * 0.5);
         let df_dx = op!(mut dx => df / dx);
 
         b1 += m1 * (1.0 - b1);
@@ -115,11 +115,14 @@ pub fn optimize<T: Target>(mut target: T, options: Options, x: &mut [f64], r: &m
         op!(mut dx, square_gx => dx * (square_gx / b2 + epsilon).rsqrte());
     }
 
+    let mut y3 = target.evaluate(x);
+    let mut y6 = target.evaluate(x);
+
     for i in 0..iterations {
         let x_next = op!(mut r6, dx, x => x + lr * dx);
 
         let dxx = (lr / m1 * px / f64::powf(1.0 + px_decay * i as f64, px_power)) * norm(dx);
-        let ndx = op!(mut r7 => rand(&mut rng, -1.0..1.0) * dxx);
+        let ndx = op!(mut r7 => randsign(&mut rng) * dxx);
 
         if adam {
             op!(mut ndx, square_gx => ndx * (square_gx / b2 + epsilon).rsqrte());
@@ -127,8 +130,7 @@ pub fn optimize<T: Target>(mut target: T, options: Options, x: &mut [f64], r: &m
 
         let y1 = target.evaluate(op!(mut x_next, ndx => x_next + ndx));
         let y2 = target.evaluate(op!(mut x_next, ndx => x_next - 2.0 * ndx));
-
-        let df = (y1 - y2) * 0.5 * f64::sqrt(size as f64) / norm2(ndx);
+        let df = (nz((y1 - y) * 0.5) - nz((y2 - y) * 0.5)) * f64::sqrt(size as f64) / norm2(ndx);
 
         if !df.is_finite() {
             break;
@@ -156,14 +158,12 @@ pub fn optimize<T: Target>(mut target: T, options: Options, x: &mut [f64], r: &m
         }
 
         let m1s = f64::sqrt(m1);
-        let y3 = target.evaluate(x);
         let y4 = target.evaluate(op!(mut r6, x, dx => x + lr * 0.5 * dx));
-        let y5 = target.evaluate(op!(mut r7, x, dx => x + lr / m1s * dx));
-        let y6 = target.evaluate(x);
+        let y5 = target.evaluate(op!(mut r6, x, dx => x + lr / m1s * dx));
 
         bn += m2 * (1.0 - bn);
         y += m2 * (y3 - y);
-        noise += m2 * (f64::powi(y3 - y6, 2) - noise);
+        noise += m2 * (f64::powi(y3 - y6, 2) + 1e-64 * (y3.abs() + y6.abs()) - noise);
 
         let noise_factor = f64::sqrt(noise / bn);
 
@@ -181,7 +181,24 @@ pub fn optimize<T: Target>(mut target: T, options: Options, x: &mut [f64], r: &m
 
         lr = f64::max(lr, epsilon / f64::sqrt(1.0 + 0.01 * i as f64) * (1.0 + 0.25 * norm(&x)));
 
+        let prev = op!(mut r6, x => x);
         op!(mut x, dx => x + dx * lr);
+
+        y3 = target.evaluate(x);
+        y6 = target.evaluate(x);
+
+        if !y3.is_finite() || !y6.is_finite() {
+            op!(mut x, prev => prev);
+
+            y3 = target.evaluate(x);
+            y6 = target.evaluate(x);
+
+            consecutive_fails += 10;
+
+            if !y3.is_finite() || !y6.is_finite() {
+                panic!("stuck out of bounds");
+            }
+        }
 
         let fa = mx / f64::powf(1.0 + 0.01 * i as f64, 0.303);
         bx += fa * (1.0 - bx);
@@ -195,7 +212,12 @@ pub fn optimize<T: Target>(mut target: T, options: Options, x: &mut [f64], r: &m
             consecutive_fails = 0;
         }
 
-        target.iteration(i, x);
+        target.iteration(Iteration {
+            iteration: i,
+            point: x,
+            gradient: gx,
+            learning_rate: &mut lr
+        });
 
         if consecutive_fails < 128 * (improvement_fails + (f64::sqrt(size as f64 + 100.0) as i32)) {
             continue;
@@ -226,8 +248,3 @@ pub fn optimize<T: Target>(mut target: T, options: Options, x: &mut [f64], r: &m
         x.copy_from_slice(x_best);
     }
 }
-
-/*
-fn line_search<T: Target>(target: &mut T, start: &[f64], dir: &[f64]) -> f64 {
-
-}*/

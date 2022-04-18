@@ -47,6 +47,34 @@ pub fn rand(rng: &mut StdRng, r: impl SampleRange<f64> + Clone) -> f64x4 {
     )
 }
 
+#[inline]
+pub fn randsign(rng: &mut StdRng) -> f64x4 {
+    fn sign(b: bool) -> f64 {
+        if b {
+            1.0
+        } else {
+            -1.0
+        }
+    }
+
+    f64x4::new(
+        sign(rng.gen::<bool>()),
+        sign(rng.gen::<bool>()),
+        sign(rng.gen::<bool>()),
+        sign(rng.gen::<bool>())
+    )
+}
+
+#[inline]
+pub fn nz(f: f64) -> f64 {
+    if f.is_nan() {
+        0.0
+    } else {
+        f
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use approx::assert_relative_eq;

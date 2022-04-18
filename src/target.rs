@@ -1,5 +1,6 @@
 use rand::{Rng, SeedableRng, thread_rng};
 use rand::rngs::StdRng;
+use crate::Iteration;
 use crate::vec::op;
 use crate::utils::rand;
 
@@ -7,11 +8,12 @@ use crate::utils::rand;
 pub trait Target {
 
     /// Evaluate the function at a given point
+    /// Return `f64::NAN` if we're out of bounds
     fn evaluate(&mut self, data: &[f64]) -> f64;
 
     /// Called after every optimizer iteration
     #[allow(unused_variables)]
-    fn iteration(&mut self, iter: usize, data: &mut [f64]) {}
+    fn iteration(&mut self, iter: Iteration) {}
 }
 
 impl<'a, T: Target> Target for &'a mut T {
@@ -21,8 +23,8 @@ impl<'a, T: Target> Target for &'a mut T {
     }
 
     #[inline]
-    fn iteration(&mut self, iter: usize, data: &mut [f64]) {
-        (*self).iteration(iter, data)
+    fn iteration(&mut self, iter: Iteration) {
+        (*self).iteration(iter)
     }
 }
 
@@ -44,8 +46,8 @@ impl<T: Target> Target for Oversample<T> {
         v / (n as f64)
     }
 
-    fn iteration(&mut self, iter: usize, data: &mut [f64]) {
-        self.source.iteration(iter, data);
+    fn iteration(&mut self, iter: Iteration) {
+        self.source.iteration(iter);
     }
 }
 
@@ -61,8 +63,8 @@ impl<T: Target> Target for OutputNoise<T> {
         self.source.evaluate(data) + self.gen.gen_range(-self.amplitude..self.amplitude)
     }
 
-    fn iteration(&mut self, iter: usize, data: &mut [f64]) {
-        self.source.iteration(iter, data);
+    fn iteration(&mut self, iter: Iteration) {
+        self.source.iteration(iter);
     }
 }
 
@@ -100,8 +102,8 @@ impl<T: Target> Target for InputNoise<T> {
         (up + down) * 0.5
     }
 
-    fn iteration(&mut self, iter: usize, data: &mut [f64]) {
-        self.source.iteration(iter, data);
+    fn iteration(&mut self, iter: Iteration) {
+        self.source.iteration(iter);
     }
 }
 
