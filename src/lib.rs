@@ -80,6 +80,7 @@ impl Default for Options {
 pub struct Optimizer([Vec<f64>; algo::REGISTER_NUM]);
 
 /// Optimizer cycle iteration data
+#[non_exhaustive]
 pub struct Iteration<'a> {
     pub iteration: usize,
     pub point: &'a mut [f64],
