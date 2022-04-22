@@ -23,7 +23,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-spsa = "0.2.0"
+spsa = "0.2.1"
 ```
 # License
 `spsa` is distributed under the terms of both the MIT license and the

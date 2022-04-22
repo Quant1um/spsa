@@ -107,6 +107,60 @@ impl<T: Target> Target for InputNoise<T> {
     }
 }
 
+/// Target that maximizes a given function output
+pub struct Maximize<F>(pub F);
+
+/// Target that minimizes a given function output
+pub struct Minimize<F>(pub F);
+
+impl<F: FnMut(&[f64]) -> f64> Target for Maximize<F> {
+    fn evaluate(&mut self, data: &[f64]) -> f64 {
+        (self.0)(data)
+    }
+}
+
+impl<F: FnMut(&[f64]) -> f64> Target for Minimize<F> {
+    fn evaluate(&mut self, data: &[f64]) -> f64 {
+        -(self.0)(data)
+    }
+}
+
+/// Creates a target that maximizes given function output
+/// # Example
+/// ```rust
+/// use approx::assert_relative_eq;
+/// use spsa::{Optimizer, Options, maximize};
+///
+/// let mut optimizer = Optimizer::new();
+/// let mut input = [0.0, 0.0];
+///
+/// optimizer.optimize(maximize(|data| 1.0 - (data[0] + 1.0) * (data[0] + 1.0) - (data[1] - 1.0) * (data[1] - 1.0)), &mut input, Options::default());
+///
+/// assert_relative_eq!(input[0], -1.0, epsilon = 1e-6);
+/// assert_relative_eq!(input[1],  1.0, epsilon = 1e-6);
+/// ```
+pub fn maximize<F: FnMut(&[f64]) -> f64>(f: F) -> Maximize<F> {
+    Maximize(f)
+}
+
+/// Creates a target that minimizes given function output
+/// # Example
+/// ```rust
+/// use approx::assert_relative_eq;
+/// use spsa::{Optimizer, Options, minimize};
+///
+/// let mut optimizer = Optimizer::new();
+/// let mut input = [0.0, 0.0];
+///
+/// optimizer.optimize(minimize(|data| 1.0 + (data[0] + 1.0) * (data[0] + 1.0) + (data[1] - 1.0) * (data[1] - 1.0)), &mut input, Options::default());
+///
+/// assert_relative_eq!(input[0], -1.0, epsilon = 1e-6);
+/// assert_relative_eq!(input[1],  1.0, epsilon = 1e-6);
+/// ```
+pub fn minimize<F: FnMut(&[f64]) -> f64>(f: F) -> Minimize<F> {
+    Minimize(f)
+}
+
 /// Extension methods for [`Target`]
 pub trait TargetExt where Self: Sized {
 
@@ -152,3 +206,4 @@ pub trait TargetExt where Self: Sized {
 }
 
 impl<T: Target> TargetExt for T {}
+
